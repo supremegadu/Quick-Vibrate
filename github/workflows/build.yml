@@ -1,0 +1,157 @@
+
+name: Build Quick Vibrate APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Create Android Project
+        run: |
+          mkdir -p app/src/main/java/com/edge70/vibrate
+          mkdir -p app/src/main/res/values
+
+          cat > settings.gradle <<'EOF'
+          pluginManagement {
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
+          }
+          dependencyResolutionManagement {
+              repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
+              repositories {
+                  google()
+                  mavenCentral()
+              }
+          }
+          rootProject.name = "QuickVibrate"
+          include(":app")
+          EOF
+
+          cat > build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.7.3' apply false
+          }
+          EOF
+
+          cat > app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+          }
+
+          android {
+              namespace 'com.edge70.vibrate'
+              compileSdk 35
+
+              defaultConfig {
+                  applicationId 'com.edge70.vibrate'
+                  minSdk 26
+                  targetSdk 35
+                  versionCode 1
+                  versionName '1.0'
+              }
+
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+          }
+          EOF
+
+          cat > app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AppTheme" parent="@android:style/Theme.NoDisplay">
+              </style>
+          </resources>
+          EOF
+
+          cat > app/src/main/AndroidManifest.xml <<'EOF'
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+              <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS"/>
+
+              <application
+                  android:theme="@style/AppTheme"
+                  android:label="Quick Vibrate"
+                  android:allowBackup="false">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:excludeFromRecents="true">
+
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+
+                  </activity>
+              </application>
+          </manifest>
+          EOF
+
+          cat > app/src/main/java/com/edge70/vibrate/MainActivity.java <<'EOF'
+          package com.edge70.vibrate;
+
+          import android.app.Activity;
+          import android.media.AudioManager;
+          import android.os.Bundle;
+
+          public class MainActivity extends Activity {
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+
+                  try {
+                      AudioManager audio = (AudioManager)
+                          getSystemService(AUDIO_SERVICE);
+
+                      audio.setRingerMode(AudioManager.RINGER_MODE_VIBRATE);
+
+                      audio.setStreamVolume(AudioManager.STREAM_MUSIC, 0, 0);
+                      audio.setStreamVolume(AudioManager.STREAM_RING, 0, 0);
+                      audio.setStreamVolume(AudioManager.STREAM_NOTIFICATION, 0, 0);
+                      audio.setStreamVolume(AudioManager.STREAM_ALARM, 0, 0);
+                      audio.setStreamVolume(AudioManager.STREAM_SYSTEM, 0, 0);
+
+                  } catch (Exception e) {
+                      e.printStackTrace();
+                  }
+
+                  finish();
+              }
+          }
+          EOF
+
+      - name: Build APK
+        run: gradle --no-daemon assembleDebug
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Quick-Vibrate-APK
+          path: app/build/outputs/apk/debug/app-debug.apk
+          
